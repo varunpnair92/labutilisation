@@ -1590,15 +1590,17 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                               children: [
                                 Row(
                                   children: [
-                                    Text(
-                                      subjectName,
-                                      style: const TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                    Expanded(
+                                      child: Text(
+                                        subjectName,
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
-                                    const Spacer(),
+                                    const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
@@ -1625,27 +1627,28 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                   ],
                                 ),
                                 const SizedBox(height: 6),
-                                Row(
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 4,
+                                  runSpacing: 4,
                                   children: [
                                     const Icon(
                                       Icons.school,
                                       size: 16,
                                       color: Color(0xFF94A3B8),
                                     ),
-                                    const SizedBox(width: 4),
                                     Text(
                                       'Class: $className',
                                       style: const TextStyle(
                                         color: Color(0xFFCBD5E1),
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(width: 12),
                                     const Icon(
                                       Icons.calendar_today,
                                       size: 14,
                                       color: Color(0xFF94A3B8),
                                     ),
-                                    const SizedBox(width: 4),
                                     Text(
                                       dateStr,
                                       style: const TextStyle(
@@ -1656,14 +1659,16 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 ),
                                 if (userEmail.isNotEmpty) ...[
                                   const SizedBox(height: 4),
-                                  Row(
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 4,
+                                    runSpacing: 4,
                                     children: [
                                       const Icon(
                                         Icons.person_outline,
                                         size: 14,
                                         color: Color(0xFF64748B),
                                       ),
-                                      const SizedBox(width: 4),
                                       Text(
                                         'Inserted by: $userEmail',
                                         style: const TextStyle(
