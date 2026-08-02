@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "44560130911",
+    "project_id": "labutilization-f3797",
+    "storage_bucket": "labutilization-f3797.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:44560130911:android:955bead797f308a49a8cea",
+        "android_client_info": {
+          "package_name": "com.example.extralabutilization"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZhDBM1kztkiqpjsGwJVt5mCFP6GN6ggE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
