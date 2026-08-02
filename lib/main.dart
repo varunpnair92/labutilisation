@@ -1738,6 +1738,12 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     'action': 'delete',
                                     'row': rowNumber,
                                     'sheet_name': sheetName,
+                                    'labname': item['labname'] ?? '',
+                                    'day_allotted': item['day_allotted'] ?? '',
+                                    'subject_name': item['subject_name'] ?? '',
+                                    'classname': item['classname'] ?? '',
+                                    'start_date': item['start_date'] ?? '',
+                                    'hours': item['hours'] ?? '',
                                   });
                                   try {
                                     await sendToGoogleSheets(
