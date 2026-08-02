@@ -4,10 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'sheets_helper.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'firebase_options.dart';
 
 void main() async {
@@ -367,6 +367,57 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
   String _selectedFilterLab = 'All';
   DateTime? _selectedFilterDate;
 
+  List<Map<String, dynamic>> _sheetData = [];
+  bool _isLoadingSheet = true;
+  String? _sheetError;
+
+  Future<void> _fetchSheetData() async {
+    setState(() {
+      _isLoadingSheet = true;
+      _sheetError = null;
+    });
+    try {
+      final webhookUrl = googleAppsScriptUrl.isNotEmpty
+          ? googleAppsScriptUrl
+          : _sheetsWebhookController.text.trim();
+
+      if (webhookUrl.isEmpty) {
+        setState(() {
+          _isLoadingSheet = false;
+          _sheetError = 'Webhook URL is missing.';
+        });
+        return;
+      }
+
+      final response = await http.get(Uri.parse(webhookUrl));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['status'] == 'success') {
+          final List<dynamic> data = json['data'] ?? [];
+          setState(() {
+            _sheetData = data.cast<Map<String, dynamic>>().reversed.toList();
+            _isLoadingSheet = false;
+          });
+        } else {
+          setState(() {
+            _isLoadingSheet = false;
+            _sheetError = json['message'] ?? 'Unknown error';
+          });
+        }
+      } else {
+        setState(() {
+          _isLoadingSheet = false;
+          _sheetError = 'HTTP Error: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingSheet = false;
+        _sheetError = 'Error fetching data: $e';
+      });
+    }
+  }
+
   final List<String> _suggestedClasses = [
     'S1 CSE',
     'S3 CSE',
@@ -388,6 +439,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
   @override
   void initState() {
     super.initState();
+    _fetchSheetData();
     _tabController = TabController(length: 2, vsync: this);
     _loadSavedWebhookUrl();
   }
@@ -601,34 +653,9 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
         final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
         final dayAllotted = DateFormat('EEEE').format(dt);
 
-        final data = {
-          'labname': _selectedLab,
-          'classname': _classNameController.text.trim(),
-          'subject_name': _subjectNameController.text.trim(),
-          'start_date': formattedDate,
-          'end_date': formattedDate,
-          'day_allotted': dayAllotted,
-          'hours': finalHours,
-          'user_email': widget.user.email ?? 'Unknown',
-          'user_name': widget.user.displayName ?? 'Faculty/Staff',
-          'sheet_link': _sheetUrl,
-          'timestamp': FieldValue.serverTimestamp(),
-        };
-
-        // 1. Try Save to Firebase Firestore with 2s timeout
-        try {
-          await FirebaseFirestore.instance
-              .collection('lab_utilization')
-              .add(data)
-              .timeout(const Duration(seconds: 2));
-          debugPrint('Firestore saved successfully.');
-        } catch (e) {
-          debugPrint('Firestore notice: $e');
-        }
-
-        // 2. Save to Google Sheets Webhook
         if (webhookUrl.isNotEmpty) {
           final payload = jsonEncode({
+            'action': 'insert',
             'labname': _selectedLab,
             'sheet_name': _selectedLab,
             'classname': _classNameController.text.trim(),
@@ -650,6 +677,9 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           }
         }
       }
+
+      // Automatically refresh the View tab data after submission
+      _fetchSheetData();
     } finally {
       if (mounted) {
         setState(() {
@@ -1363,7 +1393,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
               const Spacer(),
               TextButton.icon(
                 onPressed: () {
-                  setState(() {});
+                  _fetchSheetData();
                 },
                 icon: const Icon(Icons.refresh, color: Color(0xFF06B6D4)),
                 label: const Text(
@@ -1375,20 +1405,11 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           ),
         ),
 
-        // Live stream of records
+        // Live list of records
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _selectedFilterLab == 'All'
-                ? FirebaseFirestore.instance
-                      .collection('lab_utilization')
-                      .orderBy('timestamp', descending: true)
-                      .snapshots()
-                : FirebaseFirestore.instance
-                      .collection('lab_utilization')
-                      .where('labname', isEqualTo: _selectedFilterLab)
-                      .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+          child: Builder(
+            builder: (context) {
+              if (_sheetError != null) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1399,19 +1420,19 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                         color: Color(0xFFEF4444),
                       ),
                       const SizedBox(height: 12),
-                      Text('Error loading records: ${snapshot.error}'),
+                      Text('Error loading records: $_sheetError'),
                     ],
                   ),
                 );
               }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (_isLoadingSheet) {
                 return const Center(
                   child: CircularProgressIndicator(color: Color(0xFF6366F1)),
                 );
               }
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              if (_sheetData.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1447,21 +1468,27 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 );
               }
 
-              final allDocs = snapshot.data!.docs;
-              final docs = allDocs.where((doc) {
-                if (_selectedFilterDate == null) return true;
-                final item = doc.data() as Map<String, dynamic>;
-                final dateStr = item['start_date'] ?? '';
-                final filterStr = DateFormat(
-                  'dd-MM-yyyy',
-                ).format(_selectedFilterDate!);
-                return dateStr == filterStr;
+              final docs = _sheetData.where((item) {
+                if (_selectedFilterLab != 'All' &&
+                    item['labname'] != _selectedFilterLab) {
+                  return false;
+                }
+                if (_selectedFilterDate != null) {
+                  final dateStr = item['start_date'] ?? '';
+                  final filterStr = DateFormat(
+                    'dd-MM-yyyy',
+                  ).format(_selectedFilterDate!);
+                  if (dateStr != filterStr) return false;
+                }
+                return true;
               }).toList();
 
               if (docs.isEmpty) {
                 return Center(
                   child: Text(
-                    'No records for ${DateFormat('dd MMM yyyy').format(_selectedFilterDate!)}',
+                    _selectedFilterDate != null
+                        ? 'No records for ${DateFormat('dd MMM yyyy').format(_selectedFilterDate!)}'
+                        : 'No records match this filter.',
                     style: const TextStyle(
                       fontSize: 16,
                       color: Color(0xFF94A3B8),
@@ -1474,8 +1501,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 padding: const EdgeInsets.all(16),
                 itemCount: docs.length,
                 itemBuilder: (context, index) {
-                  final item = docs[index].data() as Map<String, dynamic>;
-                  final docId = docs[index].id;
+                  final item = docs[index];
+                  final rowNumber = item['row'];
+                  final sheetName =
+                      item['sheet_name'] ?? item['labname'] ?? 'L1';
                   final labName = item['labname'] ?? 'N/A';
                   final className = item['classname'] ?? 'N/A';
                   final subjectName = item['subject_name'] ?? 'N/A';
@@ -1658,12 +1687,9 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 ),
                               );
                               if (confirm == true) {
-                                await FirebaseFirestore.instance
-                                    .collection('lab_utilization')
-                                    .doc(docId)
-                                    .delete();
-
-                                // Also delete from Google Sheets
+                                setState(() {
+                                  _isLoadingSheet = true;
+                                });
                                 final webhookUrl =
                                     googleAppsScriptUrl.isNotEmpty
                                     ? googleAppsScriptUrl
@@ -1671,10 +1697,8 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 if (webhookUrl.isNotEmpty) {
                                   final payload = jsonEncode({
                                     'action': 'delete',
-                                    'labname': labName,
-                                    'subject_name': subjectName,
-                                    'classname': className,
-                                    'start_date': dateStr,
+                                    'row': rowNumber,
+                                    'sheet_name': sheetName,
                                   });
                                   try {
                                     await sendToGoogleSheets(
@@ -1687,6 +1711,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     );
                                   }
                                 }
+                                _fetchSheetData();
                               }
                             },
                           ),
