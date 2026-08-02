@@ -317,7 +317,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage> with Si
   final String _sheetUrl = 'https://docs.google.com/spreadsheets/d/1yLTLndwwistnZyJ12VW7cAnFsBZeh8Jf9sFAvNHZokQ/edit?usp=sharing';
   
   // Predefined static Google Apps Script Web App URL
-  static String googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbw9wIIBcw5dbnPz1YQQxWWfmgA3OH5YPElpXBMk5vBlHAd-fZWydmekcVkGBtVNPGKj/exec';
+  static String googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbzVKQ87UyffabQYCDhQllif9n7c4jhOGePsHl7TseJOuxhF3DmlG4jG1SiTldlyjBA/exec';
 
   // Form State
   String? _selectedLab = 'L1';
