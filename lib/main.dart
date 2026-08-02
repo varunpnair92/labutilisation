@@ -396,28 +396,38 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
               final json = jsonDecode(jsonStr);
               if (json['table'] != null && json['table']['rows'] != null) {
                 final rows = json['table']['rows'] as List;
-                for (int i = 1; i < rows.length; i++) {
-                  // Skip header row
+                final parsedNumHeaders = json['table']['parsedNumHeaders'] ?? 0;
+                for (int i = 0; i < rows.length; i++) {
                   final row = rows[i];
                   final cells = row['c'] as List;
                   if (cells.isNotEmpty &&
                       cells[0] != null &&
                       cells[0]['v'] != null) {
                     String parseCell(int idx) {
-                      if (cells.length > idx &&
-                          cells[idx] != null &&
-                          cells[idx]['v'] != null) {
-                        return cells[idx]['v'].toString();
+                      if (cells.length > idx && cells[idx] != null) {
+                        if (cells[idx]['f'] != null) {
+                          return cells[idx]['f'].toString();
+                        } else if (cells[idx]['v'] != null) {
+                          return cells[idx]['v'].toString();
+                        }
                       }
                       return '';
+                    }
+
+                    final labname = parseCell(0);
+                    // Skip if this row is actually the header row
+                    if (labname.toLowerCase() == 'lab_name' ||
+                        labname.toLowerCase() == 'labname') {
+                      continue;
                     }
 
                     allData.add({
                       "row":
                           i +
-                          2, // GViz API rows[0] is sheet row 2 (if header is row 1)
+                          parsedNumHeaders +
+                          1, // Calculate exact row index in Google Sheets
                       "sheet_name": sheetName,
-                      "labname": parseCell(0),
+                      "labname": labname,
                       "day_allotted": parseCell(1),
                       "hours": parseCell(2),
                       "subject_name": parseCell(3),
