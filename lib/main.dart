@@ -376,40 +376,69 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
       _isLoadingSheet = true;
       _sheetError = null;
     });
+
     try {
-      final webhookUrl = googleAppsScriptUrl.isNotEmpty
-          ? googleAppsScriptUrl
-          : _sheetsWebhookController.text.trim();
+      final String sheetId = '1yLTLndwwistnZyJ12VW7cAnFsBZeh8Jf9sFAvNHZokQ';
+      final List<String> sheetNames = ['L1', 'L2', 'L3', 'L4', 'L5'];
+      List<Map<String, dynamic>> allData = [];
 
-      if (webhookUrl.isEmpty) {
-        setState(() {
-          _isLoadingSheet = false;
-          _sheetError = 'Webhook URL is missing.';
-        });
-        return;
-      }
+      for (final sheetName in sheetNames) {
+        final url =
+            'https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:json&sheet=$sheetName';
+        try {
+          final response = await http.get(Uri.parse(url));
+          if (response.statusCode == 200) {
+            final bodyStr = response.body;
+            final startIdx = bodyStr.indexOf('setResponse(') + 12;
+            final endIdx = bodyStr.lastIndexOf(');');
+            if (startIdx > 11 && endIdx > startIdx) {
+              final jsonStr = bodyStr.substring(startIdx, endIdx);
+              final json = jsonDecode(jsonStr);
+              if (json['table'] != null && json['table']['rows'] != null) {
+                final rows = json['table']['rows'] as List;
+                for (int i = 1; i < rows.length; i++) {
+                  // Skip header row
+                  final row = rows[i];
+                  final cells = row['c'] as List;
+                  if (cells.isNotEmpty &&
+                      cells[0] != null &&
+                      cells[0]['v'] != null) {
+                    String parseCell(int idx) {
+                      if (cells.length > idx &&
+                          cells[idx] != null &&
+                          cells[idx]['v'] != null) {
+                        return cells[idx]['v'].toString();
+                      }
+                      return '';
+                    }
 
-      final response = await http.get(Uri.parse(webhookUrl));
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        if (json['status'] == 'success') {
-          final List<dynamic> data = json['data'] ?? [];
-          setState(() {
-            _sheetData = data.cast<Map<String, dynamic>>().reversed.toList();
-            _isLoadingSheet = false;
-          });
-        } else {
-          setState(() {
-            _isLoadingSheet = false;
-            _sheetError = json['message'] ?? 'Unknown error';
-          });
+                    allData.add({
+                      "row":
+                          i +
+                          2, // GViz API rows[0] is sheet row 2 (if header is row 1)
+                      "sheet_name": sheetName,
+                      "labname": parseCell(0),
+                      "day_allotted": parseCell(1),
+                      "hours": parseCell(2),
+                      "subject_name": parseCell(3),
+                      "classname": parseCell(4),
+                      "start_date": parseCell(5),
+                      "end_date": parseCell(6),
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Notice fetching $sheetName: $e');
         }
-      } else {
-        setState(() {
-          _isLoadingSheet = false;
-          _sheetError = 'HTTP Error: ${response.statusCode}';
-        });
       }
+
+      setState(() {
+        _sheetData = allData.reversed.toList();
+        _isLoadingSheet = false;
+      });
     } catch (e) {
       setState(() {
         _isLoadingSheet = false;
