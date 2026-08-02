@@ -348,7 +348,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
 
   // Predefined static Google Apps Script Web App URL
   static String googleAppsScriptUrl =
-      'https://script.google.com/macros/s/AKfycbxcqCoydZUWDrC-U5-fsgfrnKviZYVC68El2P6lv7E1dQQ9fwjpaFb6OmrDGEp4DXTD/exec';
+      'https://script.google.com/macros/s/AKfycbw9biackz4JqTJn-fr4AixZhHgjV-ltXQhDZMg4Ak-UDJiWbkvw9moiTWsoZiX3wEH2/exec';
 
   // Form State
   String? _selectedLab = 'L1';
@@ -434,6 +434,8 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                       "classname": parseCell(4),
                       "start_date": parseCell(5),
                       "end_date": parseCell(6),
+                      "user_email": parseCell(7),
+                      "timestamp": parseCell(8),
                     });
                   }
                 }
@@ -704,12 +706,14 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
             'day_allotted': dayAllotted,
             'hours': finalHours,
             'user_email': widget.user.email ?? '',
+            'timestamp': DateTime.now().toIso8601String(),
           });
 
           debugPrint('Posting to Google Sheets URL: $webhookUrl');
 
           try {
-            await sendToGoogleSheets(webhookUrl, payload);
+            // Fire-and-forget for fast inserts; don't await response
+            sendToGoogleSheets(webhookUrl, payload);
             debugPrint('Dispatched payload to Google Sheets Web App.');
           } catch (e) {
             debugPrint('Google Sheets dispatch notice: $e');
@@ -1551,6 +1555,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                   final hours = item['hours']?.toString() ?? '1';
                   final dayAllotted = item['day_allotted'] ?? '';
                   final userEmail = item['user_email'] ?? '';
+                  final timestamp = item['timestamp'] ?? '';
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -1670,7 +1675,29 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                         color: Color(0xFF64748B),
                                       ),
                                       Text(
-                                        'Inserted by: $userEmail',
+                                        'Booked by: $userEmail',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                if (timestamp.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    children: [
+                                      const Icon(
+                                        Icons.access_time,
+                                        size: 14,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      Text(
+                                        'Added: $timestamp',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFF64748B),
@@ -1738,6 +1765,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     googleAppsScriptUrl.isNotEmpty
                                     ? googleAppsScriptUrl
                                     : _sheetsWebhookController.text.trim();
+                                bool deleteSuccess = false;
                                 if (webhookUrl.isNotEmpty) {
                                   final payload = jsonEncode({
                                     'action': 'delete',
@@ -1749,19 +1777,50 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     'classname': item['classname'] ?? '',
                                     'start_date': item['start_date'] ?? '',
                                     'hours': item['hours'] ?? '',
+                                    'user_email': item['user_email'] ?? '',
+                                    'timestamp': item['timestamp'] ?? '',
                                   });
                                   try {
+                                    debugPrint(
+                                      'Sending delete request for row $rowNumber on sheet $sheetName',
+                                    );
                                     await sendToGoogleSheets(
                                       webhookUrl,
                                       payload,
                                     );
+                                    deleteSuccess = true;
+                                    debugPrint(
+                                      'Delete request sent successfully.',
+                                    );
                                   } catch (e) {
                                     debugPrint(
-                                      'Google Sheets delete notice: $e',
+                                      'Google Sheets delete error: $e',
                                     );
                                   }
                                 }
-                                _fetchSheetData();
+                                // Wait for Google Apps Script to process the delete
+                                await Future.delayed(
+                                  const Duration(seconds: 2),
+                                );
+                                await _fetchSheetData();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: deleteSuccess
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFFEF4444),
+                                      content: Text(
+                                        deleteSuccess
+                                            ? 'Record deleted successfully'
+                                            : 'Failed to delete record. Please try again.',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
                               }
                             },
                           ),
