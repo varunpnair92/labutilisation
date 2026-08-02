@@ -348,7 +348,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
 
   // Predefined static Google Apps Script Web App URL
   static String googleAppsScriptUrl =
-      'https://script.google.com/macros/s/AKfycbz2oEAvMLQuQN0-NreZ44WHCXz0NhiX_QmizUyq_OL1kM-xdiRhQdaJt3dNDBCTNuFz/exec';
+      'https://script.google.com/macros/s/AKfycbxcqCoydZUWDrC-U5-fsgfrnKviZYVC68El2P6lv7E1dQQ9fwjpaFb6OmrDGEp4DXTD/exec';
 
   // Form State
   String? _selectedLab = 'L1';
