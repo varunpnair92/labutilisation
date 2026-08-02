@@ -347,7 +347,8 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
       'https://docs.google.com/spreadsheets/d/1yLTLndwwistnZyJ12VW7cAnFsBZeh8Jf9sFAvNHZokQ/edit?usp=sharing';
 
   // Predefined static Google Apps Script Web App URL
-  static String googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbxXH6ntj69gPSlsgxEt44GsLrRvYzgdDWDN10rycR_w6HOYtZvSlzq84D1nD374XYYg/exec';
+  static String googleAppsScriptUrl =
+      'https://script.google.com/macros/s/AKfycbz2oEAvMLQuQN0-NreZ44WHCXz0NhiX_QmizUyq_OL1kM-xdiRhQdaJt3dNDBCTNuFz/exec';
 
   // Form State
   String? _selectedLab = 'L1';
@@ -364,6 +365,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
   String _repeatType = 'None';
   bool _isSubmitting = false;
   String _selectedFilterLab = 'All';
+  DateTime? _selectedFilterDate;
 
   final List<String> _suggestedClasses = [
     'S1 CSE',
@@ -544,6 +546,21 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
     }
   }
 
+  String _processHoursInput(String input) {
+    input = input.trim();
+    if (input.contains('-')) {
+      final parts = input.split('-');
+      if (parts.length == 2) {
+        final start = int.tryParse(parts[0].trim());
+        final end = int.tryParse(parts[1].trim());
+        if (start != null && end != null && start <= end) {
+          return List.generate(end - start + 1, (i) => start + i).join(',');
+        }
+      }
+    }
+    return input;
+  }
+
   Future<void> _submitData() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -578,6 +595,8 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           ? googleAppsScriptUrl
           : _sheetsWebhookController.text.trim();
 
+      final String finalHours = _processHoursInput(_hoursController.text);
+
       for (var dt in datesToProcess) {
         final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
         final dayAllotted = DateFormat('EEEE').format(dt);
@@ -589,7 +608,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           'start_date': formattedDate,
           'end_date': formattedDate,
           'day_allotted': dayAllotted,
-          'hours': _hoursController.text.trim(),
+          'hours': finalHours,
           'user_email': widget.user.email ?? 'Unknown',
           'user_name': widget.user.displayName ?? 'Faculty/Staff',
           'sheet_link': _sheetUrl,
@@ -617,7 +636,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
             'start_date': formattedDate,
             'end_date': formattedDate,
             'day_allotted': dayAllotted,
-            'hours': _hoursController.text.trim(),
+            'hours': finalHours,
             'user_email': widget.user.email ?? '',
           });
 
@@ -1230,7 +1249,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                         ),
                                       ),
                                       SizedBox(width: 12),
-                                      Text('Submitting to Database...'),
+                                      Text('Allocating...'),
                                     ],
                                   )
                                 : const Row(
@@ -1239,7 +1258,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                       Icon(Icons.send_rounded),
                                       SizedBox(width: 8),
                                       Text(
-                                        'INSERT DATA TO SHEET & DATABASE',
+                                        'ALLOCATE',
                                         style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.bold,
@@ -1304,6 +1323,43 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                   },
                 ),
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedFilterDate ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _selectedFilterDate = picked;
+                    });
+                  }
+                },
+                icon: Icon(
+                  _selectedFilterDate == null
+                      ? Icons.calendar_today
+                      : Icons.event_available,
+                  color: _selectedFilterDate == null
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF10B981),
+                ),
+                tooltip: _selectedFilterDate == null
+                    ? 'Filter by Date'
+                    : DateFormat('dd MMM').format(_selectedFilterDate!),
+              ),
+              if (_selectedFilterDate != null)
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedFilterDate = null;
+                    });
+                  },
+                  icon: const Icon(Icons.clear, color: Color(0xFFEF4444)),
+                  tooltip: 'Clear Date Filter',
+                ),
               const Spacer(),
               TextButton.icon(
                 onPressed: () {
@@ -1355,9 +1411,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 );
               }
 
-              final docs = snapshot.data?.docs ?? [];
-
-              if (docs.isEmpty) {
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1393,6 +1447,29 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 );
               }
 
+              final allDocs = snapshot.data!.docs;
+              final docs = allDocs.where((doc) {
+                if (_selectedFilterDate == null) return true;
+                final item = doc.data() as Map<String, dynamic>;
+                final dateStr = item['start_date'] ?? '';
+                final filterStr = DateFormat(
+                  'dd-MM-yyyy',
+                ).format(_selectedFilterDate!);
+                return dateStr == filterStr;
+              }).toList();
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No records for ${DateFormat('dd MMM yyyy').format(_selectedFilterDate!)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                );
+              }
+
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: docs.length,
@@ -1401,10 +1478,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                   final docId = docs[index].id;
                   final labName = item['labname'] ?? 'N/A';
                   final className = item['classname'] ?? 'N/A';
-                  final eventName = item['eventname'] ?? 'N/A';
-                  final dateStr = item['date'] ?? 'N/A';
+                  final subjectName = item['subject_name'] ?? 'N/A';
+                  final dateStr = item['start_date'] ?? 'N/A';
                   final hours = item['hours']?.toString() ?? '1';
-                  final remarks = item['remarks'] ?? '';
+                  final dayAllotted = item['day_allotted'] ?? '';
                   final userEmail = item['user_email'] ?? '';
 
                   return Card(
@@ -1446,7 +1523,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 Row(
                                   children: [
                                     Text(
-                                      eventName,
+                                      subjectName,
                                       style: const TextStyle(
                                         fontSize: 17,
                                         fontWeight: FontWeight.bold,
@@ -1529,10 +1606,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     ],
                                   ),
                                 ],
-                                if (remarks.isNotEmpty) ...[
+                                if (dayAllotted.isNotEmpty) ...[
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Remarks: $remarks',
+                                    'Day: $dayAllotted',
                                     style: const TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Color(0xFF94A3B8),
@@ -1585,6 +1662,31 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     .collection('lab_utilization')
                                     .doc(docId)
                                     .delete();
+
+                                // Also delete from Google Sheets
+                                final webhookUrl =
+                                    googleAppsScriptUrl.isNotEmpty
+                                    ? googleAppsScriptUrl
+                                    : _sheetsWebhookController.text.trim();
+                                if (webhookUrl.isNotEmpty) {
+                                  final payload = jsonEncode({
+                                    'action': 'delete',
+                                    'labname': labName,
+                                    'subject_name': subjectName,
+                                    'classname': className,
+                                    'start_date': dateStr,
+                                  });
+                                  try {
+                                    await sendToGoogleSheets(
+                                      webhookUrl,
+                                      payload,
+                                    );
+                                  } catch (e) {
+                                    debugPrint(
+                                      'Google Sheets delete notice: $e',
+                                    );
+                                  }
+                                }
                               }
                             },
                           ),
