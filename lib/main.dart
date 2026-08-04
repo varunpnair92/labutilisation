@@ -1080,19 +1080,23 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
       _selectedDate.month,
       _selectedDate.day,
     );
-    DateTime end = DateTime(_endDate.year, _endDate.month, _endDate.day);
 
-    if (_repeatType == 'None' || current.isAfter(end)) {
+    if (_repeatType == 'None') {
       datesToProcess.add(current);
-    } else if (_repeatType == 'Daily') {
-      while (!current.isAfter(end)) {
+    } else {
+      DateTime end = DateTime(_endDate.year, _endDate.month, _endDate.day);
+      if (current.isAfter(end)) {
         datesToProcess.add(current);
-        current = current.add(const Duration(days: 1));
-      }
-    } else if (_repeatType == 'Weekly') {
-      while (!current.isAfter(end)) {
-        datesToProcess.add(current);
-        current = current.add(const Duration(days: 7));
+      } else if (_repeatType == 'Daily') {
+        while (!current.isAfter(end)) {
+          datesToProcess.add(current);
+          current = current.add(const Duration(days: 1));
+        }
+      } else if (_repeatType == 'Weekly') {
+        while (!current.isAfter(end)) {
+          datesToProcess.add(current);
+          current = current.add(const Duration(days: 7));
+        }
       }
     }
 
@@ -1103,7 +1107,6 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
 
       final String finalHours = _processHoursInput(_hoursController.text);
 
-      List<Future<void>> postFutures = [];
       for (var dt in datesToProcess) {
         final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
         final dayAllotted = DateFormat('EEEE').format(dt);
@@ -1126,7 +1129,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           debugPrint('Posting to Google Sheets URL: $webhookUrl');
 
           try {
-            postFutures.add(sendToGoogleSheets(webhookUrl, payload));
+            sendToGoogleSheets(webhookUrl, payload);
             debugPrint('Dispatched payload to Google Sheets Web App.');
           } catch (e) {
             debugPrint('Google Sheets dispatch notice: $e');
@@ -1134,12 +1137,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
         }
       }
 
-      if (postFutures.isNotEmpty) {
-        await Future.wait(postFutures);
-      }
-
-      // Automatically refresh the View tab data after submission
-      await _fetchSheetData();
+      // Schedule background refresh after short delay so form resets instantly
+      Future.delayed(const Duration(milliseconds: 800), () {
+        _fetchSheetData();
+      });
     } finally {
       if (mounted) {
         setState(() {
