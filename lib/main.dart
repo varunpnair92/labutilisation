@@ -436,6 +436,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
         'MP',
       }.toList();
       List<Map<String, dynamic>> allData = [];
+      Set<String> seenKeys = {};
 
       for (final sheetName in sheetNames) {
         final url =
@@ -476,21 +477,47 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                       continue;
                     }
 
+                    final normLab = labname.toLowerCase().trim();
+                    final normSheet = sheetName.toLowerCase().trim();
+                    bool labMatches = normLab == normSheet ||
+                        (normLab == 'pg' && normSheet == 'pglab') ||
+                        (normLab == 'pglab' && normSheet == 'pg') ||
+                        (normLab == 'mp' && normSheet == 'mp lab') ||
+                        (normLab == 'mp lab' && normSheet == 'mp');
+
+                    if (!labMatches) {
+                      // gviz returns default first tab when queried tab sheetName does not exist
+                      continue;
+                    }
+
+                    final dayAllotted = parseCell(1);
+                    final hours = parseCell(2);
+                    final subjName = parseCell(3);
+                    final clsName = parseCell(4);
+                    final startDate = parseCell(5);
+                    final endDate = parseCell(6);
+                    final userEmail = parseCell(7);
+                    final ts = parseCell(8);
+
+                    final String uniqueKey =
+                        "${normLab}_${startDate}_${hours}_${subjName.toLowerCase()}_${clsName.toLowerCase()}_$ts";
+                    if (seenKeys.contains(uniqueKey)) {
+                      continue;
+                    }
+                    seenKeys.add(uniqueKey);
+
                     allData.add({
-                      "row":
-                          i +
-                          parsedNumHeaders +
-                          1, // Calculate exact row index in Google Sheets
+                      "row": i + parsedNumHeaders + 1,
                       "sheet_name": sheetName,
                       "labname": labname,
-                      "day_allotted": parseCell(1),
-                      "hours": parseCell(2),
-                      "subject_name": parseCell(3),
-                      "classname": parseCell(4),
-                      "start_date": parseCell(5),
-                      "end_date": parseCell(6),
-                      "user_email": parseCell(7),
-                      "timestamp": parseCell(8),
+                      "day_allotted": dayAllotted,
+                      "hours": hours,
+                      "subject_name": subjName,
+                      "classname": clsName,
+                      "start_date": startDate,
+                      "end_date": endDate,
+                      "user_email": userEmail,
+                      "timestamp": ts,
                     });
                   }
                 }
