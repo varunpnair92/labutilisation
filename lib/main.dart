@@ -353,7 +353,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
       'https://script.google.com/macros/s/AKfycbw2jchCBuedmA3NowqaGZ_jSxXNuXkoNjdfVy8i-UY3pvEddwNfBpPCWKYGSWOvCGy7/exec';
 
   // Form State
-  String? _selectedLab = 'L1';
+  List<String> _selectedLabs = ['L1'];
   final TextEditingController _classNameController = TextEditingController();
   final TextEditingController _subjectNameController = TextEditingController();
   final TextEditingController _hoursController = TextEditingController(
@@ -899,7 +899,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 setState(() {
                                   if (parsed.labName != null &&
                                       _labs.contains(parsed.labName)) {
-                                    _selectedLab = parsed.labName;
+                                    _selectedLabs = [parsed.labName!];
                                   }
                                   if (parsed.className != null) {
                                     _classNameController.text = parsed.className!;
@@ -1134,32 +1134,34 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
 
       final String finalHours = _processHoursInput(_hoursController.text);
 
-      for (var dt in datesToProcess) {
-        final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
-        final dayAllotted = DateFormat('EEEE').format(dt);
+      for (var lab in _selectedLabs) {
+        for (var dt in datesToProcess) {
+          final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
+          final dayAllotted = DateFormat('EEEE').format(dt);
 
-        if (webhookUrl.isNotEmpty) {
-          final payload = jsonEncode({
-            'action': 'insert',
-            'labname': _selectedLab,
-            'sheet_name': _selectedLab,
-            'classname': _classNameController.text.trim(),
-            'subject_name': _subjectNameController.text.trim(),
-            'start_date': formattedDate,
-            'end_date': formattedDate,
-            'day_allotted': dayAllotted,
-            'hours': finalHours,
-            'user_email': widget.user.email ?? '',
-            'timestamp': DateTime.now().toIso8601String(),
-          });
+          if (webhookUrl.isNotEmpty) {
+            final payload = jsonEncode({
+              'action': 'insert',
+              'labname': lab,
+              'sheet_name': lab,
+              'classname': _classNameController.text.trim(),
+              'subject_name': _subjectNameController.text.trim(),
+              'start_date': formattedDate,
+              'end_date': formattedDate,
+              'day_allotted': dayAllotted,
+              'hours': finalHours,
+              'user_email': widget.user.email ?? '',
+              'timestamp': DateTime.now().toIso8601String(),
+            });
 
-          debugPrint('Posting to Google Sheets URL: $webhookUrl');
+            debugPrint('Posting to Google Sheets URL: $webhookUrl');
 
-          try {
-            sendToGoogleSheets(webhookUrl, payload);
-            debugPrint('Dispatched payload to Google Sheets Web App.');
-          } catch (e) {
-            debugPrint('Google Sheets dispatch notice: $e');
+            try {
+              sendToGoogleSheets(webhookUrl, payload);
+              debugPrint('Dispatched payload to Google Sheets Web App.');
+            } catch (e) {
+              debugPrint('Google Sheets dispatch notice: $e');
+            }
           }
         }
       }
@@ -1183,7 +1185,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Lab Utilization record for $_selectedLab submitted successfully!',
+                    'Lab Utilization record for ${_selectedLabs.join(', ')} submitted successfully!',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1200,7 +1202,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
         _subjectNameController.clear();
         _hoursController.text = '1';
         setState(() {
-          _selectedLab = _labs.first;
+          _selectedLabs = [_labs.first];
           _selectedDate = DateTime.now();
           _endDate = DateTime.now();
           _repeatType = 'None';
@@ -1499,44 +1501,142 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                         ],
                         const Divider(height: 32, color: Color(0xFF334155)),
 
-                        // 1. Lab Name Dropdown (L1 to L9, pglab, MP lab)
-                        const Text(
-                          'Lab Name *',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFCBD5E1),
-                          ),
+                        // 1. Multi-Select Lab Selection
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Select Labs *',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFCBD5E1),
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedLabs = List.from(_labs);
+                                    });
+                                  },
+                                  child: const Text(
+                                    'Select All',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFFF5B862),
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedLabs = [_labs.first];
+                                    });
+                                  },
+                                  child: const Text(
+                                    'Reset',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedLab,
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(
-                              Icons.door_sliding_outlined,
-                              color: Color(0xFFF5B862),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _selectedLabs.isEmpty
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFF334155),
                             ),
-                            hintText: 'Select Lab Name',
                           ),
-                          dropdownColor: const Color(0xFF1E293B),
-                          items: _labs.map((String lab) {
-                            return DropdownMenuItem<String>(
-                              value: lab,
-                              child: Text(
-                                lab,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _labs.map((String lab) {
+                                  final isSelected = _selectedLabs.contains(lab);
+                                  return FilterChip(
+                                    avatar: Icon(
+                                      isSelected
+                                          ? Icons.check_circle
+                                          : Icons.door_sliding_outlined,
+                                      size: 16,
+                                      color: isSelected
+                                          ? const Color(0xFFF5B862)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    label: Text(
+                                      lab,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                    selected: isSelected,
+                                    selectedColor: const Color(0xFF2D328C),
+                                    backgroundColor: const Color(0xFF181F42),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: BorderSide(
+                                        color: isSelected
+                                            ? const Color(0xFFF5B862)
+                                            : const Color(0xFF334155),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    onSelected: (bool selected) {
+                                      setState(() {
+                                        if (selected) {
+                                          if (!_selectedLabs.contains(lab)) {
+                                            _selectedLabs.add(lab);
+                                          }
+                                        } else {
+                                          if (_selectedLabs.length > 1) {
+                                            _selectedLabs.remove(lab);
+                                          }
+                                        }
+                                      });
+                                    },
+                                  );
+                                }).toList(),
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              _selectedLab = newValue;
-                            });
-                          },
-                          validator: (val) =>
-                              val == null ? 'Please select a lab' : null,
+                              if (_selectedLabs.isEmpty) ...[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Please select at least one lab',
+                                  style: TextStyle(
+                                    color: Color(0xFFEF4444),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ] else ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Selected Labs (${_selectedLabs.length}): ${_selectedLabs.join(', ')}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFF5B862),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 20),
 
