@@ -18,9 +18,7 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-  } catch (e) {
-    debugPrint("Firebase init error: $e");
-  }
+  } catch (_) {}
   runApp(const LabUtilizationApp());
 }
 
@@ -139,7 +137,6 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Google sign in error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -524,9 +521,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
               }
             }
           }
-        } catch (e) {
-          debugPrint('Notice fetching $sheetName: $e');
-        }
+        } catch (_) {}
       }
 
       setState(() {
@@ -658,12 +653,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
     bool speechAvailable = false;
     try {
       speechAvailable = await speech.initialize(
-        onError: (val) => debugPrint('Speech error: $val'),
-        onStatus: (val) => debugPrint('Speech status: $val'),
+        onError: (val) {},
+        onStatus: (val) {},
       );
-    } catch (e) {
-      debugPrint('Speech init notice: $e');
-    }
+    } catch (_) {}
 
     if (!mounted) return;
 
@@ -1534,14 +1527,9 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
               'timestamp': DateTime.now().toIso8601String(),
             });
 
-            debugPrint('Posting to Google Sheets URL: $webhookUrl');
-
             try {
               sendToGoogleSheets(webhookUrl, payload);
-              debugPrint('Dispatched payload to Google Sheets Web App.');
-            } catch (e) {
-              debugPrint('Google Sheets dispatch notice: $e');
-            }
+            } catch (_) {}
           }
         }
       }
@@ -2895,20 +2883,12 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                         '&classname=${Uri.encodeComponent(classValue)}'
                                         '&start_date=${Uri.encodeComponent(startDateValue)}'
                                         '&hours=${Uri.encodeComponent(hoursValue)}';
-                                    debugPrint(
-                                      'Sending delete request for row $rowNumber on sheet $sheetName to $deleteUrlWithParams',
-                                    );
                                     await sendToGoogleSheets(
                                       deleteUrlWithParams,
                                       payload,
                                     );
                                     deleteSuccess = true;
-                                    debugPrint(
-                                      'Delete request sent successfully.',
-                                    );
-                                  } catch (e) {
-                                    debugPrint('Google Sheets delete error: $e');
-                                  }
+                                  } catch (_) {}
                                 }
                                 if (deleteSuccess) {
                                   setState(() {
