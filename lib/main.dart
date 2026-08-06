@@ -1079,6 +1079,117 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
     }
   }
 
+  Future<void> _openMultiLabDialog(BuildContext context) async {
+    List<String> tempSelected = List.from(_selectedLabs);
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Select Labs',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setDialogState(() {
+                        if (tempSelected.length == _labs.length) {
+                          tempSelected = [_labs.first];
+                        } else {
+                          tempSelected = List.from(_labs);
+                        }
+                      });
+                    },
+                    child: Text(
+                      tempSelected.length == _labs.length
+                          ? 'Clear All'
+                          : 'Select All',
+                      style: const TextStyle(
+                        color: Color(0xFFF5B862),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 320,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _labs.map((lab) {
+                      final isChecked = tempSelected.contains(lab);
+                      return CheckboxListTile(
+                        activeColor: const Color(0xFF2D328C),
+                        checkColor: const Color(0xFFF5B862),
+                        title: Text(
+                          lab,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        value: isChecked,
+                        onChanged: (bool? checked) {
+                          setDialogState(() {
+                            if (checked == true) {
+                              if (!tempSelected.contains(lab)) {
+                                tempSelected.add(lab);
+                              }
+                            } else {
+                              if (tempSelected.length > 1) {
+                                tempSelected.remove(lab);
+                              }
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF94A3B8)),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2D328C),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedLabs = tempSelected;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Confirm'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   String _processHoursInput(String input) {
     input = input.trim();
     if (input.contains('-')) {
@@ -1501,141 +1612,42 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                         ],
                         const Divider(height: 32, color: Color(0xFF334155)),
 
-                        // 1. Multi-Select Lab Selection
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Select Labs *',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFCBD5E1),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedLabs = List.from(_labs);
-                                    });
-                                  },
-                                  child: const Text(
-                                    'Select All',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFFF5B862),
-                                    ),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedLabs = [_labs.first];
-                                    });
-                                  },
-                                  child: const Text(
-                                    'Reset',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                        // 1. Multi-Select Lab Dropdown Field
+                        const Text(
+                          'Lab Name(s) *',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFCBD5E1),
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _selectedLabs.isEmpty
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFF334155),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _labs.map((String lab) {
-                                  final isSelected = _selectedLabs.contains(lab);
-                                  return FilterChip(
-                                    avatar: Icon(
-                                      isSelected
-                                          ? Icons.check_circle
-                                          : Icons.door_sliding_outlined,
-                                      size: 16,
-                                      color: isSelected
-                                          ? const Color(0xFFF5B862)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                    label: Text(
-                                      lab,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : const Color(0xFFCBD5E1),
-                                      ),
-                                    ),
-                                    selected: isSelected,
-                                    selectedColor: const Color(0xFF2D328C),
-                                    backgroundColor: const Color(0xFF181F42),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      side: BorderSide(
-                                        color: isSelected
-                                            ? const Color(0xFFF5B862)
-                                            : const Color(0xFF334155),
-                                        width: isSelected ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    onSelected: (bool selected) {
-                                      setState(() {
-                                        if (selected) {
-                                          if (!_selectedLabs.contains(lab)) {
-                                            _selectedLabs.add(lab);
-                                          }
-                                        } else {
-                                          if (_selectedLabs.length > 1) {
-                                            _selectedLabs.remove(lab);
-                                          }
-                                        }
-                                      });
-                                    },
-                                  );
-                                }).toList(),
+                        InkWell(
+                          onTap: () => _openMultiLabDialog(context),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(
+                                Icons.door_sliding_outlined,
+                                color: Color(0xFFF5B862),
                               ),
-                              if (_selectedLabs.isEmpty) ...[
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Please select at least one lab',
-                                  style: TextStyle(
-                                    color: Color(0xFFEF4444),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ] else ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Selected Labs (${_selectedLabs.length}): ${_selectedLabs.join(', ')}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFF5B862),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ],
+                              suffixIcon: const Icon(
+                                Icons.arrow_drop_down,
+                                color: Color(0xFFF5B862),
+                              ),
+                              errorText: _selectedLabs.isEmpty
+                                  ? 'Please select at least one lab'
+                                  : null,
+                            ),
+                            child: Text(
+                              _selectedLabs.isEmpty
+                                  ? 'Select Labs'
+                                  : _selectedLabs.join(', '),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 20),
