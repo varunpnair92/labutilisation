@@ -1,4 +1,5 @@
 class ParsedBooking {
+  final List<String> labs;
   final String? labName;
   final String? className;
   final String? subjectName;
@@ -6,14 +7,17 @@ class ParsedBooking {
   final String? hours;
 
   ParsedBooking({
-    this.labName,
+    List<String>? labs,
+    String? labName,
     this.className,
     this.subjectName,
     this.date,
     this.hours,
-  });
+  })  : labs = labs ?? (labName != null ? [labName] : []),
+        labName = labName ?? (labs != null && labs.isNotEmpty ? labs.first : null);
 
   bool get isEmpty =>
+      labs.isEmpty &&
       labName == null &&
       className == null &&
       (subjectName == null || subjectName!.isEmpty) &&
@@ -22,7 +26,7 @@ class ParsedBooking {
 
   @override
   String toString() {
-    return 'ParsedBooking(labName: $labName, className: $className, subjectName: $subjectName, date: $date, hours: $hours)';
+    return 'ParsedBooking(labs: $labs, className: $className, subjectName: $subjectName, date: $date, hours: $hours)';
   }
 }
 
@@ -120,11 +124,62 @@ class VoicePromptParser {
     'thirty first': 31, '31st': 31,
   };
 
-  /// Parses natural language spoken prompts in any order.
+  /// Parses multiple natural language or WhatsApp pasted bookings into a list.
+  static List<ParsedBooking> parseMultiple(String text) {
+    if (text.trim().isEmpty) return [];
+
+    // Header regex for WhatsApp messages: [06/08, 2:34 pm] Sender Name:
+    final headerRegex = RegExp(
+      r'\[\d{1,2}/\d{1,2}(?:/\d{2,4})?,\s*\d{1,2}:\d{2}(?:\u202f|\s)*(?:am|pm|AM|PM)?\][^:\n]*:',
+    );
+
+    List<String> blocks = [];
+    final matches = headerRegex.allMatches(text).toList();
+    if (matches.length > 1) {
+      for (int i = 0; i < matches.length; i++) {
+        int start = matches[i].end;
+        int end = (i + 1 < matches.length) ? matches[i + 1].start : text.length;
+        String chunk = text.substring(start, end).trim();
+        if (chunk.isNotEmpty) {
+          blocks.add(chunk);
+        }
+      }
+    } else {
+      // Split by double newlines or date lines
+      final splitBlocks = text.split(RegExp(r'\n\s*\n'));
+      for (var b in splitBlocks) {
+        if (b.trim().isNotEmpty) {
+          blocks.add(b.trim());
+        }
+      }
+    }
+
+    if (blocks.isEmpty) {
+      blocks.add(text);
+    }
+
+    List<ParsedBooking> results = [];
+    for (var b in blocks) {
+      final parsed = parse(b);
+      if (!parsed.isEmpty) {
+        results.add(parsed);
+      }
+    }
+
+    return results;
+  }
+
+  /// Parses natural language spoken or pasted prompts in any order.
   static ParsedBooking parse(String text) {
     if (text.trim().isEmpty) return ParsedBooking();
 
-    String workingText = text.toLowerCase();
+    // Clean WhatsApp header prefix if present: [06/08, 2:34 pm] Name:
+    String workingText = text.replaceAll(
+      RegExp(
+        r'^\[\d{1,2}/\d{1,2}(?:/\d{2,4})?,\s*\d{1,2}:\d{2}(?:\u202f|\s)*(?:am|pm|AM|PM)?\][^:\n]*:',
+      ),
+      '',
+    ).toLowerCase();
 
     // Comprehensive STT Phonetic & Letter Spacing Normalizations
     workingText = workingText
@@ -143,7 +198,7 @@ class VoicePromptParser {
         .replaceAll(RegExp(r'\bl\s+([1-9])\b'), r'l$1')
         .replaceAll(RegExp(r'\blab\s+l\s*([1-9])\b'), r'lab l$1');
 
-    String? matchedLab;
+    List<String> matchedLabs = [];
     String? matchedClass;
     DateTime? matchedDate;
     String? matchedHours;
@@ -166,60 +221,86 @@ class VoicePromptParser {
       }
     }
 
-    // 1. EXTRACT LAB NAME
-    if (workingText.contains('pg lab') ||
-        workingText.contains('pglab') ||
-        RegExp(r'\bpg\b').hasMatch(workingText)) {
-      matchedLab = 'pglab';
-      workingText = workingText
-          .replaceAll('pg lab', ' ')
-          .replaceAll('pglab', ' ')
-          .replaceAll(RegExp(r'\bpg\b'), ' ');
-    } else if (workingText.contains('mp lab') ||
-        workingText.contains('mplab') ||
-        workingText.contains('microprocessor lab') ||
-        RegExp(r'\bmp\b').hasMatch(workingText)) {
-      matchedLab = 'MP lab';
-      workingText = workingText
-          .replaceAll('microprocessor lab', ' ')
-          .replaceAll('mp lab', ' ')
-          .replaceAll('mplab', ' ')
-          .replaceAll(RegExp(r'\bmp\b'), ' ');
+    // 1. EXTRACT MULTI LAB NAMES
+    final rangeReg = RegExp(
+      r'\b(?:lab|l)\s*([1-9])\s*(?:to|-|till)\s*(?:lab|l)?\s*([1-9])\b',
+      caseSensitive: false,
+    );
+    final rangeMatch = rangeReg.firstMatch(workingText);
+    if (rangeMatch != null) {
+      int start = int.parse(rangeMatch.group(1)!);
+      int end = int.parse(rangeMatch.group(2)!);
+      if (start <= end) {
+        for (int i = start; i <= end; i++) {
+          matchedLabs.add('L$i');
+        }
+        workingText = workingText.replaceRange(
+          rangeMatch.start,
+          rangeMatch.end,
+          ' ',
+        );
+      }
     } else {
-      final labReg = RegExp(
-        r'\b(?:lab\s*|l\s*|lab\s+l\s*)([1-9]|one|two|three|four|five|six|seven|eight|nine)\b',
+      final allLabsReg = RegExp(
+        r'\b(l\s*[1-9]|pg\s*lab|pglab|mp\s*lab|mplab|microprocessor\s*lab|pg|mp)\b',
+        caseSensitive: false,
       );
-      final match = labReg.firstMatch(workingText);
-      if (match != null) {
-        final labStr = match.group(1)!;
-        final digit = _numberWords[labStr] ?? labStr;
-        matchedLab = 'L$digit';
-        workingText = workingText.replaceRange(match.start, match.end, ' ');
+      final matches = allLabsReg.allMatches(workingText).toList();
+      for (final m in matches) {
+        String token = m.group(0)!.toLowerCase().replaceAll(' ', '');
+        String norm = 'L1';
+        if (token.startsWith('l') && token.length == 2) {
+          norm = 'L${token[1]}';
+        } else if (token.contains('pg')) {
+          norm = 'pglab';
+        } else if (token.contains('mp') || token.contains('micro')) {
+          norm = 'MP lab';
+        }
+        if (!matchedLabs.contains(norm)) {
+          matchedLabs.add(norm);
+        }
+      }
+      if (matches.isNotEmpty) {
+        workingText = workingText.replaceAll(allLabsReg, ' ');
       }
     }
 
-    // 2. EXTRACT HOURS (Safe isolated regex matching)
-    final hoursReg = RegExp(
-      r'\b(?:hours?|hrs?)\s*[:=]?\s*([\d\s,]+)\b|\b([\d\s,]+)\s*(?:hours?|hrs?)\b',
+    // 2. EXTRACT HOURS / TIME RANGES
+    final timeRangeReg = RegExp(
+      r'\(?\s*(\d{1,2}(?:\.\d{2})?)\s*(?:to|-|till)\s*(\d{1,2}(?:\.\d{2})?)\s*\)?',
+      caseSensitive: false,
     );
-    final hoursMatch = hoursReg.firstMatch(workingText);
-    if (hoursMatch != null) {
-      final rawNums = (hoursMatch.group(1) ?? hoursMatch.group(2))!.trim();
-      final numMatches = RegExp(r'\d+')
-          .allMatches(rawNums)
-          .map((m) => m.group(0)!)
-          .where((n) {
-            final val = int.tryParse(n);
-            return val != null && val >= 1 && val <= 10;
-          })
-          .toList();
-      if (numMatches.isNotEmpty) {
-        matchedHours = numMatches.join(',');
-        workingText = workingText.replaceRange(
-          hoursMatch.start,
-          hoursMatch.end,
-          ' ',
-        );
+    final timeMatch = timeRangeReg.firstMatch(workingText);
+    if (timeMatch != null) {
+      matchedHours = '${timeMatch.group(1)} to ${timeMatch.group(2)}';
+      workingText = workingText.replaceRange(
+        timeMatch.start,
+        timeMatch.end,
+        ' ',
+      );
+    } else {
+      final hoursReg = RegExp(
+        r'\b(?:hours?|hrs?)\s*[:=]?\s*([\d\s,]+)\b|\b([\d\s,]+)\s*(?:hours?|hrs?)\b',
+      );
+      final hoursMatch = hoursReg.firstMatch(workingText);
+      if (hoursMatch != null) {
+        final rawNums = (hoursMatch.group(1) ?? hoursMatch.group(2))!.trim();
+        final numMatches = RegExp(r'\d+')
+            .allMatches(rawNums)
+            .map((m) => m.group(0)!)
+            .where((n) {
+              final val = int.tryParse(n);
+              return val != null && val >= 1 && val <= 10;
+            })
+            .toList();
+        if (numMatches.isNotEmpty) {
+          matchedHours = numMatches.join(',');
+          workingText = workingText.replaceRange(
+            hoursMatch.start,
+            hoursMatch.end,
+            ' ',
+          );
+        }
       }
     }
 
@@ -288,7 +369,7 @@ class VoicePromptParser {
     }
 
     return ParsedBooking(
-      labName: matchedLab,
+      labs: matchedLabs,
       className: matchedClass,
       subjectName: matchedSubject,
       date: matchedDate,
@@ -366,7 +447,7 @@ class VoicePromptParser {
     }
 
     final numDateReg = RegExp(
-      r'\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b|\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b',
+      r'\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b|\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b',
     );
     final numMatch = numDateReg.firstMatch(text);
     if (numMatch != null) {
@@ -378,8 +459,10 @@ class VoicePromptParser {
           int.parse(numMatch.group(3)!),
         );
       } else {
+        int year = int.parse(numMatch.group(6)!);
+        if (year < 100) year += 2000;
         dt = DateTime(
-          int.parse(numMatch.group(6)!),
+          year,
           int.parse(numMatch.group(5)!),
           int.parse(numMatch.group(4)!),
         );

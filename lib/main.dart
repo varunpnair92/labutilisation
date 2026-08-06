@@ -680,7 +680,11 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
             final promptController = TextEditingController(
               text: _voicePromptText,
             );
-            ParsedBooking parsed = VoicePromptParser.parse(promptController.text);
+            List<ParsedBooking> parsedList =
+                VoicePromptParser.parseMultiple(promptController.text);
+            ParsedBooking singleParsed = parsedList.isNotEmpty
+                ? parsedList.first
+                : ParsedBooking();
 
             void updatePrompt(String text) {
               setModalState(() {
@@ -688,7 +692,10 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                 promptController.selection = TextSelection.fromPosition(
                   TextPosition(offset: text.length),
                 );
-                parsed = VoicePromptParser.parse(text);
+                parsedList = VoicePromptParser.parseMultiple(text);
+                singleParsed = parsedList.isNotEmpty
+                    ? parsedList.first
+                    : ParsedBooking();
                 _voicePromptText = text;
               });
             }
@@ -739,11 +746,15 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                              colors: [Color(0xFF2D328C), Color(0xFF1D226A)],
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.mic, color: Colors.white, size: 24),
+                          child: const Icon(
+                            Icons.psychology_outlined,
+                            color: Color(0xFFF5B862),
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -751,7 +762,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Voice & Natural Language Booking',
+                                'Smart Prompt & WhatsApp Auto-Parser',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -759,8 +770,11 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                 ),
                               ),
                               Text(
-                                "Order doesn't matter! Speak or type prompt.",
-                                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                                'Paste WhatsApp messages or speak! Handles single or multiple bookings.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                ),
                               ),
                             ],
                           ),
@@ -779,12 +793,12 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                       child: Row(
                         children: [
                           _buildPromptPresetChip(
-                            'S5 CSA Hackathon hour 1 2 3 lab 2 August second',
+                            '[06/08, 2:34 pm] SREELALITHAMBIKA P K: 7/8/26 L3 FHC workshop (1.30 to 3.30)\n[06/08, 2:36 pm] SREELALITHAMBIKA P K: 8/8/26 L1, L2, L3 &L4 FHC workshop (8 to 3.30) 200 students',
                             updatePrompt,
                           ),
                           const SizedBox(width: 8),
                           _buildPromptPresetChip(
-                            'book for hackathon s5 csa for august 20 lab 1',
+                            'S5 CSA Hackathon hour 1 2 3 lab 2 August second',
                             updatePrompt,
                           ),
                           const SizedBox(width: 8),
@@ -800,18 +814,24 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                     // Mic / Input Field
                     TextField(
                       controller: promptController,
-                      maxLines: 3,
+                      maxLines: 4,
                       onChanged: (text) {
                         setModalState(() {
-                          parsed = VoicePromptParser.parse(text);
+                          parsedList = VoicePromptParser.parseMultiple(text);
+                          singleParsed = parsedList.isNotEmpty
+                              ? parsedList.first
+                              : ParsedBooking();
                           _voicePromptText = text;
                         });
                       },
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         hintText:
-                            'Tap mic or type: e.g. "book for hackathon s5 csa for august 20 lab 1"',
-                        hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                            'Paste WhatsApp message(s) or speak prompt...',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                        ),
                         filled: true,
                         fillColor: const Color(0xFF1E293B),
                         suffixIcon: Padding(
@@ -826,136 +846,385 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                     if (speech.isListening) const _VoiceListeningWaveAnimation(),
 
                     const SizedBox(height: 20),
-                    const Text(
-                      'Extracted Column Data:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF94A3B8),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          parsedList.length > 1
+                              ? 'Detected ${parsedList.length} Bookings:'
+                              : 'Extracted Column Data:',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFF5B862),
+                          ),
+                        ),
+                        if (parsedList.length > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2D328C),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Multi-Booking Detected',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 10),
 
-                    // Extracted Entities Cards/Grid
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF334155)),
+                    // Display Multiple Cards if > 1, or Single Card if <= 1
+                    if (parsedList.length > 1)
+                      Column(
+                        children: parsedList.asMap().entries.map((entry) {
+                          int idx = entry.key;
+                          ParsedBooking b = entry.value;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFF5B862).withAlpha(100),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 12,
+                                      backgroundColor: const Color(0xFFF5B862),
+                                      child: Text(
+                                        '${idx + 1}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF1E293B),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Booking #${idx + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                _buildEntityRow(
+                                  icon: Icons.door_sliding_outlined,
+                                  label: 'Lab(s)',
+                                  value: b.labs.isNotEmpty
+                                      ? b.labs.join(', ')
+                                      : 'Not recognized',
+                                  isMatched: b.labs.isNotEmpty,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildEntityRow(
+                                  icon: Icons.book_outlined,
+                                  label: 'Event / Subject',
+                                  value: b.subjectName ?? 'Not recognized',
+                                  isMatched: b.subjectName != null,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildEntityRow(
+                                  icon: Icons.calendar_today_outlined,
+                                  label: 'Date',
+                                  value: b.date != null
+                                      ? DateFormat('dd-MM-yyyy (EEEE)').format(b.date!)
+                                      : 'Not recognized',
+                                  isMatched: b.date != null,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildEntityRow(
+                                  icon: Icons.access_time_outlined,
+                                  label: 'Hours',
+                                  value: b.hours ?? '1',
+                                  isMatched: b.hours != null,
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFF334155)),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildEntityRow(
+                              icon: Icons.meeting_room,
+                              label: 'Lab Name(s)',
+                              value: singleParsed.labs.isNotEmpty
+                                  ? singleParsed.labs.join(', ')
+                                  : 'Not recognized',
+                              isMatched: singleParsed.labs.isNotEmpty,
+                            ),
+                            const Divider(color: Color(0xFF334155), height: 16),
+                            _buildEntityRow(
+                              icon: Icons.school,
+                              label: 'Class Name',
+                              value: singleParsed.className ?? 'Not recognized',
+                              isMatched: singleParsed.className != null,
+                            ),
+                            const Divider(color: Color(0xFF334155), height: 16),
+                            _buildEntityRow(
+                              icon: Icons.book,
+                              label: 'Subject / Event',
+                              value: singleParsed.subjectName ?? 'Not recognized',
+                              isMatched: singleParsed.subjectName != null,
+                            ),
+                            const Divider(color: Color(0xFF334155), height: 16),
+                            _buildEntityRow(
+                              icon: Icons.calendar_today,
+                              label: 'Date',
+                              value: singleParsed.date != null
+                                  ? DateFormat('dd-MM-yyyy (EEEE)').format(singleParsed.date!)
+                                  : 'Not recognized',
+                              isMatched: singleParsed.date != null,
+                            ),
+                            const Divider(color: Color(0xFF334155), height: 16),
+                            _buildEntityRow(
+                              icon: Icons.access_time,
+                              label: 'Hours',
+                              value: singleParsed.hours ?? '1',
+                              isMatched: singleParsed.hours != null,
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Column(
-                        children: [
-                          _buildEntityRow(
-                            icon: Icons.meeting_room,
-                            label: 'Lab Name',
-                            value: parsed.labName ?? 'Not recognized',
-                            isMatched: parsed.labName != null,
-                          ),
-                          const Divider(color: Color(0xFF334155), height: 16),
-                          _buildEntityRow(
-                            icon: Icons.school,
-                            label: 'Class Name',
-                            value: parsed.className ?? 'Not recognized',
-                            isMatched: parsed.className != null,
-                          ),
-                          const Divider(color: Color(0xFF334155), height: 16),
-                          _buildEntityRow(
-                            icon: Icons.book,
-                            label: 'Subject / Event',
-                            value: parsed.subjectName ?? 'Not recognized',
-                            isMatched: parsed.subjectName != null,
-                          ),
-                          const Divider(color: Color(0xFF334155), height: 16),
-                          _buildEntityRow(
-                            icon: Icons.calendar_today,
-                            label: 'Date',
-                            value: parsed.date != null
-                                ? DateFormat('dd-MM-yyyy (EEEE)').format(parsed.date!)
-                                : 'Not recognized',
-                            isMatched: parsed.date != null,
-                          ),
-                          const Divider(color: Color(0xFF334155), height: 16),
-                          _buildEntityRow(
-                            icon: Icons.access_time,
-                            label: 'Hours',
-                            value: '${parsed.hours ?? '1'} hour(s)',
-                            isMatched: parsed.hours != null,
-                          ),
-                        ],
-                      ),
-                    ),
 
                     const SizedBox(height: 24),
 
-                    // Apply Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: parsed.isEmpty
-                            ? null
-                            : () {
-                                setState(() {
-                                  if (parsed.labName != null &&
-                                      _labs.contains(parsed.labName)) {
-                                    _selectedLabs = [parsed.labName!];
-                                  }
-                                  if (parsed.className != null) {
-                                    _classNameController.text = parsed.className!;
-                                  }
-                                  if (parsed.subjectName != null) {
-                                    _subjectNameController.text = parsed.subjectName!;
-                                  }
-                                  if (parsed.date != null) {
-                                    _selectedDate = parsed.date!;
-                                    _endDate = parsed.date!;
-                                  }
-                                  if (parsed.hours != null) {
-                                    _hoursController.text = parsed.hours!;
-                                  }
-                                  promptController.clear();
-                                });
-                                Navigator.pop(modalCtx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    content: const Row(
-                                      children: [
-                                        Icon(Icons.check_circle, color: Colors.white),
-                                        SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            'Voice prompt extracted & applied to form columns!',
-                                            style: TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
+                    // Action Buttons
+                    if (parsedList.length > 1) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            final webhookUrl = googleAppsScriptUrl.isNotEmpty
+                                ? googleAppsScriptUrl
+                                : _sheetsWebhookController.text.trim();
+
+                            for (var booking in parsedList) {
+                              final dt = booking.date ?? DateTime.now();
+                              final formattedDate =
+                                  DateFormat('dd-MM-yyyy').format(dt);
+                              final dayAllotted = DateFormat('EEEE').format(dt);
+                              final hoursVal = booking.hours ?? '1';
+
+                              final targetLabs = booking.labs.isNotEmpty
+                                  ? booking.labs
+                                  : ['L1'];
+
+                              for (var lab in targetLabs) {
+                                if (webhookUrl.isNotEmpty) {
+                                  final payload = jsonEncode({
+                                    'action': 'insert',
+                                    'labname': lab,
+                                    'sheet_name': lab,
+                                    'classname':
+                                        booking.className ?? 'Workshop',
+                                    'subject_name':
+                                        booking.subjectName ?? 'Utilization',
+                                    'start_date': formattedDate,
+                                    'end_date': formattedDate,
+                                    'day_allotted': dayAllotted,
+                                    'hours': hoursVal,
+                                    'user_email': widget.user.email ?? '',
+                                    'timestamp':
+                                        DateTime.now().toIso8601String(),
+                                  });
+                                  try {
+                                    sendToGoogleSheets(webhookUrl, payload);
+                                  } catch (_) {}
+                                }
+                              }
+                            }
+
+                            Future.delayed(const Duration(milliseconds: 800), () {
+                              _fetchSheetData();
+                            });
+
+                            Navigator.pop(modalCtx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFF10B981),
+                                content: Text(
+                                  'Successfully batch-allocated ${parsedList.length} bookings to Google Sheets!',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                );
-                              },
-                        icon: const Icon(Icons.playlist_add_check, color: Colors.white),
-                        label: const Text(
-                          'Apply Extracted Data to Form',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.flash_on, color: Colors.white),
+                          label: Text(
+                            'ALLOCATE ALL (${parsedList.length} BOOKINGS)',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6366F1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2D328C),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              if (singleParsed.labs.isNotEmpty) {
+                                _selectedLabs = singleParsed.labs;
+                              }
+                              if (singleParsed.className != null) {
+                                _classNameController.text =
+                                    singleParsed.className!;
+                              }
+                              if (singleParsed.subjectName != null) {
+                                _subjectNameController.text =
+                                    singleParsed.subjectName!;
+                              }
+                              if (singleParsed.date != null) {
+                                _selectedDate = singleParsed.date!;
+                                _endDate = singleParsed.date!;
+                              }
+                              if (singleParsed.hours != null) {
+                                _hoursController.text = singleParsed.hours!;
+                              }
+                              promptController.clear();
+                            });
+                            Navigator.pop(modalCtx);
+                          },
+                          icon: const Icon(
+                            Icons.edit_note,
+                            color: Color(0xFFF5B862),
+                          ),
+                          label: const Text(
+                            'Apply Booking #1 to Main Form',
+                            style: TextStyle(color: Color(0xFFF5B862)),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFF5B862)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: singleParsed.isEmpty
+                              ? null
+                              : () {
+                                  setState(() {
+                                    if (singleParsed.labs.isNotEmpty) {
+                                      _selectedLabs = singleParsed.labs;
+                                    }
+                                    if (singleParsed.className != null) {
+                                      _classNameController.text =
+                                          singleParsed.className!;
+                                    }
+                                    if (singleParsed.subjectName != null) {
+                                      _subjectNameController.text =
+                                          singleParsed.subjectName!;
+                                    }
+                                    if (singleParsed.date != null) {
+                                      _selectedDate = singleParsed.date!;
+                                      _endDate = singleParsed.date!;
+                                    }
+                                    if (singleParsed.hours != null) {
+                                      _hoursController.text =
+                                          singleParsed.hours!;
+                                    }
+                                    promptController.clear();
+                                  });
+                                  Navigator.pop(modalCtx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: const Color(0xFF10B981),
+                                      content: const Row(
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'Voice prompt extracted & applied to form columns!',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          10,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(
+                            Icons.playlist_add_check,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'Apply Extracted Data to Form',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2D328C),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
