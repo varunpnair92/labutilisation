@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'voice_parser.dart';
 
@@ -426,106 +427,33 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
     });
 
     try {
-      final String sheetId = '1yLTLndwwistnZyJ12VW7cAnFsBZeh8Jf9sFAvNHZokQ';
-      final List<String> sheetNames = <String>{
-        ..._labs,
-        'PG',
-        'MP',
-      }.toList();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('utilisation')
+          .orderBy('timestamp', descending: true)
+          .get();
+
       List<Map<String, dynamic>> allData = [];
-      Set<String> seenKeys = {};
-
-      for (final sheetName in sheetNames) {
-        final url =
-            'https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:json&sheet=$sheetName';
-        try {
-          final response = await http.get(Uri.parse(url));
-          if (response.statusCode == 200) {
-            final bodyStr = response.body;
-            final startIdx = bodyStr.indexOf('setResponse(') + 12;
-            final endIdx = bodyStr.lastIndexOf(');');
-            if (startIdx > 11 && endIdx > startIdx) {
-              final jsonStr = bodyStr.substring(startIdx, endIdx);
-              final json = jsonDecode(jsonStr);
-              if (json['table'] != null && json['table']['rows'] != null) {
-                final rows = json['table']['rows'] as List;
-                final parsedNumHeaders = json['table']['parsedNumHeaders'] ?? 0;
-                for (int i = 0; i < rows.length; i++) {
-                  final row = rows[i];
-                  final cells = row['c'] as List;
-                  if (cells.isNotEmpty &&
-                      cells[0] != null &&
-                      cells[0]['v'] != null) {
-                    String parseCell(int idx) {
-                      if (cells.length > idx && cells[idx] != null) {
-                        if (cells[idx]['f'] != null) {
-                          return cells[idx]['f'].toString();
-                        } else if (cells[idx]['v'] != null) {
-                          return cells[idx]['v'].toString();
-                        }
-                      }
-                      return '';
-                    }
-
-                    final labname = parseCell(0);
-                    // Skip if this row is actually the header row
-                    if (labname.toLowerCase() == 'lab_name' ||
-                        labname.toLowerCase() == 'labname') {
-                      continue;
-                    }
-
-                    final normLab = labname.toLowerCase().trim();
-                    final normSheet = sheetName.toLowerCase().trim();
-                    bool labMatches = normLab == normSheet ||
-                        (normLab == 'pg' && normSheet == 'pglab') ||
-                        (normLab == 'pglab' && normSheet == 'pg') ||
-                        (normLab == 'mp' && normSheet == 'mp lab') ||
-                        (normLab == 'mp lab' && normSheet == 'mp');
-
-                    if (!labMatches) {
-                      // gviz returns default first tab when queried tab sheetName does not exist
-                      continue;
-                    }
-
-                    final dayAllotted = parseCell(1);
-                    final hours = parseCell(2);
-                    final subjName = parseCell(3);
-                    final clsName = parseCell(4);
-                    final startDate = parseCell(5);
-                    final endDate = parseCell(6);
-                    final userEmail = parseCell(7);
-                    final ts = parseCell(8);
-
-                    final String uniqueKey =
-                        "${normLab}_${startDate}_${hours}_${subjName.toLowerCase()}_${clsName.toLowerCase()}_$ts";
-                    if (seenKeys.contains(uniqueKey)) {
-                      continue;
-                    }
-                    seenKeys.add(uniqueKey);
-
-                    allData.add({
-                      "row": i + parsedNumHeaders + 1,
-                      "sheet_name": sheetName,
-                      "labname": labname,
-                      "day_allotted": dayAllotted,
-                      "hours": hours,
-                      "subject_name": subjName,
-                      "classname": clsName,
-                      "start_date": startDate,
-                      "end_date": endDate,
-                      "user_email": userEmail,
-                      "timestamp": ts,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        } catch (_) {}
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        allData.add({
+          "doc_id": doc.id,
+          "row": allData.length + 1,
+          "sheet_name": data['sheet_name'] ?? data['labname'] ?? '',
+          "labname": data['labname'] ?? '',
+          "day_allotted": data['day_allotted'] ?? '',
+          "hours": data['hours'] ?? '',
+          "subject_name": data['subject_name'] ?? '',
+          "classname": data['classname'] ?? '',
+          "start_date": data['start_date'] ?? '',
+          "end_date": data['end_date'] ?? '',
+          "user_email": data['user_email'] ?? '',
+          "timestamp": data['timestamp'] ?? '',
+        });
       }
 
       setState(() {
-        _sheetData = allData.reversed.toList();
+        _sheetData = allData;
         _isLoadingSheet = false;
       });
     } catch (e) {
@@ -1033,23 +961,30 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                   : ['L1'];
 
                               for (var lab in targetLabs) {
+                                final bookingData = {
+                                  'action': 'insert',
+                                  'labname': lab,
+                                  'sheet_name': lab,
+                                  'classname': booking.className ?? 'Workshop',
+                                  'subject_name': booking.subjectName ?? 'Utilization',
+                                  'start_date': formattedDate,
+                                  'end_date': formattedDate,
+                                  'day_allotted': dayAllotted,
+                                  'hours': hoursVal,
+                                  'user_email': widget.user.email ?? '',
+                                  'timestamp': DateTime.now().toIso8601String(),
+                                };
+
+                                try {
+                                  FirebaseFirestore.instance
+                                      .collection('utilisation')
+                                      .add(bookingData);
+                                } catch (e) {
+                                  print('Firestore batch insert error: $e');
+                                }
+
                                 if (webhookUrl.isNotEmpty) {
-                                  final payload = jsonEncode({
-                                    'action': 'insert',
-                                    'labname': lab,
-                                    'sheet_name': lab,
-                                    'classname':
-                                        booking.className ?? 'Workshop',
-                                    'subject_name':
-                                        booking.subjectName ?? 'Utilization',
-                                    'start_date': formattedDate,
-                                    'end_date': formattedDate,
-                                    'day_allotted': dayAllotted,
-                                    'hours': hoursVal,
-                                    'user_email': widget.user.email ?? '',
-                                    'timestamp':
-                                        DateTime.now().toIso8601String(),
-                                  });
+                                  final payload = jsonEncode(bookingData);
                                   try {
                                     sendToGoogleSheets(webhookUrl, payload);
                                   } catch (_) {}
@@ -1512,21 +1447,38 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
           final formattedDate = DateFormat('dd-MM-yyyy').format(dt);
           final dayAllotted = DateFormat('EEEE').format(dt);
 
-          if (webhookUrl.isNotEmpty) {
-            final payload = jsonEncode({
-              'action': 'insert',
-              'labname': lab,
-              'sheet_name': lab,
-              'classname': _classNameController.text.trim(),
-              'subject_name': _subjectNameController.text.trim(),
-              'start_date': formattedDate,
-              'end_date': formattedDate,
-              'day_allotted': dayAllotted,
-              'hours': finalHours,
-              'user_email': widget.user.email ?? '',
-              'timestamp': DateTime.now().toIso8601String(),
-            });
+          final bookingData = {
+            'action': 'insert',
+            'labname': lab,
+            'sheet_name': lab,
+            'classname': _classNameController.text.trim(),
+            'subject_name': _subjectNameController.text.trim(),
+            'start_date': formattedDate,
+            'end_date': formattedDate,
+            'day_allotted': dayAllotted,
+            'hours': finalHours,
+            'user_email': widget.user.email ?? '',
+            'timestamp': DateTime.now().toIso8601String(),
+          };
 
+          try {
+            await FirebaseFirestore.instance
+                .collection('utilisation')
+                .add(bookingData);
+          } catch (e) {
+            print('Firestore Error: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.red,
+                  content: Text('Firestore insert failed: $e'),
+                ),
+              );
+            }
+          }
+
+          if (webhookUrl.isNotEmpty) {
+            final payload = jsonEncode(bookingData);
             try {
               sendToGoogleSheets(webhookUrl, payload);
             } catch (_) {}
@@ -2868,6 +2820,11 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                     'time_stamp': timestampValue,
                                   });
                                   try {
+                                    final String? docId = item['doc_id']?.toString();
+                                    if (docId != null) {
+                                      await FirebaseFirestore.instance.collection('utilisation').doc(docId).delete();
+                                    }
+
                                     final String paramSep = webhookUrl.contains('?') ? '&' : '?';
                                     final String deleteUrlWithParams =
                                         '$webhookUrl${paramSep}action=delete'
