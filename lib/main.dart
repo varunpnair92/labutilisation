@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'sheets_helper.dart';
@@ -732,6 +733,44 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                     ),
                     const SizedBox(height: 16),
 
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'WhatsApp Text / Voice Prompt:',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final data = await Clipboard.getData(
+                              Clipboard.kTextPlain,
+                            );
+                            if (data != null && data.text != null) {
+                              updatePrompt(data.text!);
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.content_paste,
+                            size: 16,
+                            color: Color(0xFFF5B862),
+                          ),
+                          label: const Text(
+                            'Paste Copied Text',
+                            style: TextStyle(
+                              color: Color(0xFFF5B862),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
                     // Mic / Input Field
                     TextField(
                       controller: promptController,
@@ -843,6 +882,59 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 14,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          if (b.labs.isNotEmpty) {
+                                            _selectedLabs = b.labs;
+                                          }
+                                          if (b.className != null) {
+                                            _classNameController.text =
+                                                b.className!;
+                                          }
+                                          if (b.subjectName != null) {
+                                            _subjectNameController.text =
+                                                b.subjectName!;
+                                          }
+                                          if (b.date != null) {
+                                            _selectedDate = b.date!;
+                                            _endDate = b.date!;
+                                          }
+                                          if (b.hours != null) {
+                                            _hoursController.text = b.hours!;
+                                          }
+                                          promptController.clear();
+                                        });
+                                        Navigator.pop(modalCtx);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            backgroundColor:
+                                                const Color(0xFF10B981),
+                                            content: Text(
+                                              'Booking #${idx + 1} loaded into form for editing allotment!',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.edit_note,
+                                        size: 18,
+                                        color: Color(0xFFF5B862),
+                                      ),
+                                      label: const Text(
+                                        'Edit Allotment',
+                                        style: TextStyle(
+                                          color: Color(0xFFF5B862),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1061,7 +1153,7 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                             color: Color(0xFFF5B862),
                           ),
                           label: const Text(
-                            'Apply Booking #1 to Main Form',
+                            'Edit Allotment (#1)',
                             style: TextStyle(color: Color(0xFFF5B862)),
                           ),
                           style: OutlinedButton.styleFrom(
@@ -1133,11 +1225,11 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                                   );
                                 },
                           icon: const Icon(
-                            Icons.playlist_add_check,
+                            Icons.edit_note,
                             color: Colors.white,
                           ),
                           label: const Text(
-                            'Apply Extracted Data to Form',
+                            'Edit Allotment',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -1728,20 +1820,61 @@ class _LabUtilizationHomePageState extends State<LabUtilizationHomePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.edit_note,
-                              color: Color(0xFFF5B862),
-                              size: 28,
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.edit_note,
+                                  color: Color(0xFFF5B862),
+                                  size: 28,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Insert Lab Utilization Data',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFF8FAFC),
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Insert Lab Utilization Data',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFF8FAFC),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final data = await Clipboard.getData(
+                                  Clipboard.kTextPlain,
+                                );
+                                if (data != null &&
+                                    data.text != null &&
+                                    data.text!.isNotEmpty) {
+                                  setState(() {
+                                    _voicePromptText = data.text!;
+                                  });
+                                }
+                                _openVoiceBookingModal();
+                              },
+                              icon: const Icon(
+                                Icons.content_paste_go,
+                                size: 16,
+                                color: Color(0xFFF5B862),
+                              ),
+                              label: const Text(
+                                'Paste WhatsApp & Edit Allotment',
+                                style: TextStyle(
+                                  color: Color(0xFFF5B862),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: Color(0xFFF5B862),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ],
